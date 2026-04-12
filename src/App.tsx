@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
+import { message, ask } from '@tauri-apps/plugin-dialog';
 import { useConfig } from './hooks';
-import type { AgentConfig, OhMyOpenCodeConfig, OpenCodeConfig } from './types';
-import { 
-    Settings, 
-    Save, 
-    RefreshCw, 
-    AlertCircle, 
-    LayoutDashboard, 
+import type { AgentConfig, OpenCodeConfig } from './types';
+import {
+    Settings,
+    Save,
+    RefreshCw,
+    AlertCircle,
+    LayoutDashboard,
     Sliders,
     Database,
     Plus,
@@ -17,7 +18,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+    return twMerge(clsx(inputs));
 }
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -33,7 +34,7 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
     'momus': '计划审查与逻辑验证专家',
     'atlas': '待办事项编排器，负责系统化推进计划执行。',
     'sisyphus-junior': '特定任务衍生执行器。',
-    
+
     // Categories
     'visual-engineering': '前端、UI/UX 与设计相关任务。',
     'ultrabrain': '复杂硬核逻辑、架构决策。',
@@ -58,7 +59,7 @@ const PRIMARY_AGENTS = ['sisyphus', 'hephaestus', 'prometheus'];
 
 function getAvailableModels(config: OpenCodeConfig | null): string[] {
     if (!config) return [];
-    
+
     const models: string[] = [];
     for (const [providerId, provider] of Object.entries(config.provider)) {
         if (!provider.models) continue;
@@ -69,14 +70,14 @@ function getAvailableModels(config: OpenCodeConfig | null): string[] {
     return models;
 }
 
-function EditorPanel({ 
-    title, 
-    items, 
-    availableModels, 
-    onUpdate 
-}: { 
+function EditorPanel({
+    title,
+    items,
+    availableModels,
+    onUpdate
+}: {
     title: string;
-    items: Record<string, AgentConfig>; 
+    items: Record<string, AgentConfig>;
     availableModels: string[];
     onUpdate: (key: string, value: AgentConfig) => void;
 }) {
@@ -103,7 +104,7 @@ function EditorPanel({
                         <div className="grid gap-1.5">
                             <div className="flex items-center gap-2">
                                 <label className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 w-11 shrink-0 tracking-wider">Model</label>
-                                <select 
+                                <select
                                     value={config.model}
                                     onChange={(e) => onUpdate(key, { ...config, model: e.target.value })}
                                     className="flex-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-[11px] h-6"
@@ -117,7 +118,7 @@ function EditorPanel({
                             </div>
                             <div className="flex items-center gap-2">
                                 <label className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 w-11 shrink-0 tracking-wider">Variant</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={config.variant || ''}
                                     onChange={(e) => onUpdate(key, { ...config, variant: e.target.value || undefined })}
@@ -133,12 +134,79 @@ function EditorPanel({
     );
 }
 
-function ProviderPanel({ 
-    opencodeConfig, 
-    providerPresets, 
-    onSwitch, 
-    loading 
+function InputModal({ 
+    isOpen, 
+    onClose, 
+    onConfirm, 
+    title, 
+    placeholder 
 }: { 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onConfirm: (val: string) => void;
+    title: string;
+    placeholder: string;
+}) {
+    const [value, setValue] = useState('');
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 space-y-4">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
+                    <input
+                        autoFocus
+                        type="text"
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && value.trim()) {
+                                onConfirm(value.trim());
+                                setValue('');
+                            } else if (e.key === 'Escape') {
+                                onClose();
+                                setValue('');
+                            }
+                        }}
+                        placeholder={placeholder}
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+                    />
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={() => {
+                                onClose();
+                                setValue('');
+                            }}
+                            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            取消
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (value.trim()) {
+                                    onConfirm(value.trim());
+                                    setValue('');
+                                }
+                            }}
+                            className="flex-1 px-4 py-2.5 bg-blue-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-colors"
+                        >
+                            确定
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ProviderPanel({
+    opencodeConfig,
+    providerPresets,
+    onSwitch,
+    loading
+}: {
     opencodeConfig: OpenCodeConfig | null;
     providerPresets: string[];
     onSwitch: (name: string) => Promise<void>;
@@ -158,7 +226,7 @@ function ProviderPanel({
                         <p className="text-[12px] text-slate-400">正在使用的 OpenCode 模型源设置</p>
                     </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                     {Object.entries(opencodeConfig.provider).map(([key, value]) => (
                         <div key={key} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
@@ -205,29 +273,30 @@ type AppTab = 'overview' | 'config' | 'backups';
 
 const tabs: Array<{ id: AppTab; icon: typeof Settings; label: string }> = [
     { id: 'overview', icon: LayoutDashboard, label: '总览' },
-    { id: 'config', icon: Sliders, label: '预设与配置' },
+    { id: 'config', icon: Sliders, label: '配置' },
     { id: 'backups', icon: Database, label: '提供商' },
 ];
 
 export default function App() {
-    const { 
-        omoConfig, 
-        opencodeConfig, 
-        loading, 
-        error, 
-        presets, 
-        providerPresets, 
+    const {
+        omoConfig,
+        opencodeConfig,
+        loading,
+        error,
+        presets,
+        providerPresets,
         activePreset,
-        loadConfig, 
-        loadPresetToUI, 
-        saveAsPreset, 
-        applyCurrentToActive, 
+        loadConfig,
+        loadPresetToUI,
+        saveAsPreset,
+        applyCurrentToActive,
         switchProvider,
-        setOmoConfig 
+        setOmoConfig
     } = useConfig();
-    
+
     const [activeTab, setActiveTab] = useState<AppTab>('overview');
     const [selectedPreset, setSelectedPreset] = useState<string>('');
+    const [isInputModalOpen, setIsInputModalOpen] = useState(false);
 
     useEffect(() => {
         if (activePreset) setSelectedPreset(activePreset);
@@ -235,11 +304,13 @@ export default function App() {
 
     const availableModels = getAvailableModels(opencodeConfig);
 
-    const handleNewPreset = async () => {
-        const name = prompt('请输入新预设名称:');
-        if (name) {
-            await saveAsPreset(name);
-        }
+    const handleNewPreset = () => {
+        setIsInputModalOpen(true);
+    };
+
+    const handleConfirmNewPreset = async (name: string) => {
+        setIsInputModalOpen(false);
+        await saveAsPreset(name);
     };
 
     const handleSaveCurrentPreset = async () => {
@@ -252,7 +323,18 @@ export default function App() {
 
     const handleApplyConfig = async () => {
         await applyCurrentToActive();
-        alert('配置已成功应用到活动 OMO 路由！');
+        await message('配置已成功应用到活动 OMO 路由！', { title: 'Oh My OMO', kind: 'info' });
+    };
+
+    const handleSwitchProvider = async (name: string) => {
+        const confirmed = await ask(`确定要切换到提供商预设 "${name}" 吗？\n当前的 opencode.json 将会被备份并覆盖。`, {
+            title: '切换提供商',
+            kind: 'warning',
+        });
+        if (confirmed) {
+            await switchProvider(name);
+            await message(`已成功切换到提供商: ${name}`, { title: 'Oh My OMO', kind: 'info' });
+        }
     };
 
     if (loading && !omoConfig) {
@@ -271,7 +353,7 @@ export default function App() {
                     <div>
                         <h2 className="font-semibold text-lg mb-2">配置错误</h2>
                         <p className="text-sm whitespace-pre-wrap break-words">{error}</p>
-                        <button 
+                        <button
                             onClick={loadConfig}
                             className="mt-4 px-4 py-2 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 rounded text-sm font-medium transition-colors"
                         >
@@ -287,16 +369,16 @@ export default function App() {
 
     return (
         <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
-            <header className="h-14 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0 shadow-sm z-10">
-                <div className="flex items-center gap-2">
+            <header className="h-14 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center px-6 shrink-0 shadow-sm z-10">
+                <div className="flex-1 flex items-center gap-2">
                     <div className="bg-blue-600 p-1.5 rounded-lg">
                         <Settings className="w-5 h-5 text-white" />
                     </div>
                     <h1 className="text-lg font-bold text-slate-900 dark:text-white">
-                        OMO Editor
+                        Oh My OMO
                     </h1>
                 </div>
-                
+
                 <nav className="flex items-center bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-full border border-slate-200 dark:border-slate-700">
                     {tabs.map(tab => (
                         <button
@@ -304,8 +386,8 @@ export default function App() {
                             onClick={() => setActiveTab(tab.id)}
                             className={cn(
                                 "flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200",
-                                activeTab === tab.id 
-                                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600" 
+                                activeTab === tab.id
+                                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600"
                                     : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                             )}
                         >
@@ -315,8 +397,8 @@ export default function App() {
                     ))}
                 </nav>
 
-                <div className="flex items-center gap-3">
-                    {/* Placeholder for header actions if needed, currently empty as per request */}
+                <div className="flex-1 flex items-center justify-end gap-3">
+                    {/* Header Actions Placeholder */}
                 </div>
             </header>
 
@@ -351,7 +433,7 @@ export default function App() {
                             </div>
                         </div>
                     )}
-                    
+
                     {activeTab === 'config' && omoConfig && (
                         <div className="space-y-6">
                             {/* Preset Bar */}
@@ -362,7 +444,7 @@ export default function App() {
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">当前预设</span>
-                                        <select 
+                                        <select
                                             value={selectedPreset}
                                             onChange={(e) => {
                                                 setSelectedPreset(e.target.value);
@@ -380,7 +462,7 @@ export default function App() {
                                     {selectedPreset && (
                                         <span className={cn(
                                             "text-[10px] px-2 py-0.5 rounded-full font-bold",
-                                            activePreset === selectedPreset 
+                                            activePreset === selectedPreset
                                                 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
                                                 : "bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400"
                                         )}>
@@ -389,21 +471,21 @@ export default function App() {
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button 
+                                    <button
                                         onClick={handleNewPreset}
                                         className="px-3 py-1.5 text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                                     >
                                         <Plus className="w-3.5 h-3.5" />
                                         新建预设
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={handleSaveCurrentPreset}
                                         className="px-3 py-1.5 text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                                     >
                                         <Save className="w-3.5 h-3.5" />
                                         保存预设
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={handleApplyConfig}
                                         className="px-5 py-1.5 bg-blue-600 text-white rounded-lg text-[12px] font-bold shadow-lg shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 ml-2"
                                     >
@@ -418,12 +500,12 @@ export default function App() {
                                     {Object.entries(omoConfig.agents)
                                         .filter(([k]) => PRIMARY_AGENTS.includes(k.toLowerCase()))
                                         .map(([key, config]) => (
-                                            <EditorPanel 
+                                            <EditorPanel
                                                 key={key}
-                                                title="" 
-                                                items={{[key]: config}}
+                                                title=""
+                                                items={{ [key]: config }}
                                                 availableModels={availableModels}
-                                                onUpdate={(k, val) => setOmoConfig({...omoConfig, agents: {...omoConfig.agents, [k]: val}})}
+                                                onUpdate={(k, val) => setOmoConfig({ ...omoConfig, agents: { ...omoConfig.agents, [k]: val } })}
                                             />
                                         ))}
                                 </div>
@@ -435,11 +517,11 @@ export default function App() {
                                         <div className="w-1.5 h-4 bg-slate-400 rounded-full" />
                                         子智能体 (Sub-agents)
                                     </h2>
-                                    <EditorPanel 
-                                        title="" 
+                                    <EditorPanel
+                                        title=""
                                         items={Object.fromEntries(Object.entries(omoConfig.agents).filter(([k]) => !PRIMARY_AGENTS.includes(k.toLowerCase())))}
                                         availableModels={availableModels}
-                                        onUpdate={(key, val) => setOmoConfig({...omoConfig, agents: {...omoConfig.agents, [key]: val}})}
+                                        onUpdate={(key, val) => setOmoConfig({ ...omoConfig, agents: { ...omoConfig.agents, [key]: val } })}
                                     />
                                 </div>
                                 <div className="space-y-3">
@@ -447,11 +529,11 @@ export default function App() {
                                         <div className="w-1.5 h-4 bg-emerald-500 rounded-full" />
                                         分类配置 (Categories)
                                     </h2>
-                                    <EditorPanel 
-                                        title="" 
+                                    <EditorPanel
+                                        title=""
                                         items={omoConfig.categories}
                                         availableModels={availableModels}
-                                        onUpdate={(key, val) => setOmoConfig({...omoConfig, categories: {...omoConfig.categories, [key]: val}})}
+                                        onUpdate={(key, val) => setOmoConfig({ ...omoConfig, categories: { ...omoConfig.categories, [key]: val } })}
                                     />
                                 </div>
                             </div>
@@ -459,15 +541,23 @@ export default function App() {
                     )}
 
                     {activeTab === 'backups' && (
-                        <ProviderPanel 
+                        <ProviderPanel
                             opencodeConfig={opencodeConfig}
                             providerPresets={providerPresets}
-                            onSwitch={switchProvider}
+                            onSwitch={handleSwitchProvider}
                             loading={loading}
                         />
                     )}
                 </div>
             </main>
+
+            <InputModal
+                isOpen={isInputModalOpen}
+                onClose={() => setIsInputModalOpen(false)}
+                onConfirm={handleConfirmNewPreset}
+                title="新建配置预设"
+                placeholder="请输入预设名称 (例如: coding-mode)"
+            />
         </div>
     );
 }
