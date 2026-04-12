@@ -1,0 +1,67 @@
+name: "Windows Release"
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: install frontend dependencies
+        run: npm install
+
+      - name: Generate Changelog
+        id: changelog
+        shell: bash
+        run: |
+          # 获取当前 Tag 
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          # 获取上一个 Tag (如果不存在则为空)
+          PREV_TAG=$(git describe --tags --abbrev=0 $CURRENT_TAG^ 2>/dev/null || echo "")
+          
+          echo "### 🚀 更新内容 (Changelog)" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          
+          if [ -z "$PREV_TAG" ]; then
+            echo "这是 Oh My OMO 的首次公开发布。" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            git log --pretty=format:"* %s" >> CHANGELOG.md
+          else
+            echo "自上一步版本 $PREV_TAG 以来的所有改动：" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            git log $PREV_TAG..$CURRENT_TAG --pretty=format:"* %s" >> CHANGELOG.md
+          fi
+          
+          # 渲染成 GitHub Action 的多行输出
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          cat CHANGELOG.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Oh My OMO ${{ github.ref_name }}"
+          releaseBody: ${{ steps.changelog.outputs.body }}
+          releaseDraft: true
+          prerelease: false
+          # 指定仅构建 Windows
+          args: --target x86_64-pc-windows-msvc
