@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { message, ask } from '@tauri-apps/plugin-dialog';
-import { useConfig } from './hooks';
+import { useConfig, getOmoConfigFileName } from './hooks';
 import type { AgentConfig, OpenCodeConfig } from './types';
 import {
     Settings,
@@ -422,7 +422,7 @@ export default function App() {
                                     配置摘要
                                 </h3>
                                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
-                                    此编辑器用于管理您的 oh-my-opencode.jsonc 路由表。
+                                    此编辑器用于管理您的 {getOmoConfigFileName()} 路由表。
                                     它会保留您的 JSONC 注释，并在每次保存前自动创建带时间戳的备份。
                                 </p>
                                 <div className="text-[11px] font-mono bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800 overflow-auto text-slate-600 dark:text-slate-400">
