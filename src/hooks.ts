@@ -13,10 +13,13 @@ export interface ExtendedAppState extends AppState {
 const OMO_CONFIG_PATH_NEW = '.config/opencode/oh-my-openagent.json';
 // 旧版配置文件名（兼容回退）
 const OMO_CONFIG_PATH_LEGACY = '.config/opencode/oh-my-opencode.jsonc';
-const OPENCODE_CONFIG_PATH = '.config/opencode/opencode.json';
+// OpenCode 配置文件（优先 .json，兼容 .jsonc）
+const OPENCODE_CONFIG_PATH_JSON = '.config/opencode/opencode.json';
+const OPENCODE_CONFIG_PATH_JSONC = '.config/opencode/opencode.jsonc';
 
-// 缓存已解析的 OMO 配置路径，避免重复检测
+// 缓存已解析的配置路径，避免重复检测
 let _cachedOmoConfigPath: string | null = null;
+let _cachedOpencodeConfigPath: string | null = null;
 
 /**
  * 自动检测 OMO 配置文件路径
@@ -26,19 +29,36 @@ async function resolveOmoConfigPath(forceRefresh = false): Promise<string> {
     if (_cachedOmoConfigPath && !forceRefresh) {
         return _cachedOmoConfigPath;
     }
-    // 优先检测新版文件
     if (await fileExists(OMO_CONFIG_PATH_NEW)) {
         _cachedOmoConfigPath = OMO_CONFIG_PATH_NEW;
         return OMO_CONFIG_PATH_NEW;
     }
-    // 回退到旧版文件
     if (await fileExists(OMO_CONFIG_PATH_LEGACY)) {
         _cachedOmoConfigPath = OMO_CONFIG_PATH_LEGACY;
         return OMO_CONFIG_PATH_LEGACY;
     }
-    // 两者都不存在时，使用新版路径（报错时显示新版路径）
     _cachedOmoConfigPath = OMO_CONFIG_PATH_NEW;
     return OMO_CONFIG_PATH_NEW;
+}
+
+/**
+ * 自动检测 OpenCode 配置文件路径
+ * 优先使用 opencode.json，不存在时回退到 opencode.jsonc
+ */
+async function resolveOpencodeConfigPath(forceRefresh = false): Promise<string> {
+    if (_cachedOpencodeConfigPath && !forceRefresh) {
+        return _cachedOpencodeConfigPath;
+    }
+    if (await fileExists(OPENCODE_CONFIG_PATH_JSON)) {
+        _cachedOpencodeConfigPath = OPENCODE_CONFIG_PATH_JSON;
+        return OPENCODE_CONFIG_PATH_JSON;
+    }
+    if (await fileExists(OPENCODE_CONFIG_PATH_JSONC)) {
+        _cachedOpencodeConfigPath = OPENCODE_CONFIG_PATH_JSONC;
+        return OPENCODE_CONFIG_PATH_JSONC;
+    }
+    _cachedOpencodeConfigPath = OPENCODE_CONFIG_PATH_JSON;
+    return OPENCODE_CONFIG_PATH_JSON;
 }
 
 /** 获取当前使用的配置文件名（用于 UI 展示） */
@@ -126,16 +146,17 @@ export function useConfig() {
     const loadConfig = async () => {
         setState(s => ({ ...s, loading: true, error: null }));
         try {
-            // 动态解析 OMO 配置文件路径（优先新版，兼容旧版）
+            // 动态解析配置文件路径（优先新版，兼容旧版）
             const omoConfigPath = await resolveOmoConfigPath(true);
+            const opencodeConfigPath = await resolveOpencodeConfigPath(true);
             const hasOmo = await fileExists(omoConfigPath);
-            const hasOpencode = await fileExists(OPENCODE_CONFIG_PATH);
+            const hasOpencode = await fileExists(opencodeConfigPath);
 
             if (!hasOmo) throw new Error(`在 ${OMO_CONFIG_PATH_NEW} 或 ${OMO_CONFIG_PATH_LEGACY} 未找到 OMO 配置`);
-            if (!hasOpencode) throw new Error(`在 ${OPENCODE_CONFIG_PATH} 未找到 OpenCode 配置`);
+            if (!hasOpencode) throw new Error(`在 ${OPENCODE_CONFIG_PATH_JSON} 或 ${OPENCODE_CONFIG_PATH_JSONC} 未找到 OpenCode 配置`);
 
             const omoRaw = await readConfigFile(omoConfigPath);
-            const opencodeRaw = await readConfigFile(OPENCODE_CONFIG_PATH);
+            const opencodeRaw = await readConfigFile(opencodeConfigPath);
 
             const omoConfig = parseOmoConfig(omoRaw);
             const opencodeConfig = parseOpenCodeConfig(opencodeRaw);
@@ -222,7 +243,8 @@ export function useConfig() {
         setState(s => ({ ...s, loading: true }));
         try {
             await applyPresetToActive('provider', name);
-            const opencodeRaw = await readConfigFile(OPENCODE_CONFIG_PATH);
+            const opencodeConfigPath = await resolveOpencodeConfigPath();
+            const opencodeRaw = await readConfigFile(opencodeConfigPath);
             const opencodeConfig = parseOpenCodeConfig(opencodeRaw);
             setState(s => ({ ...s, opencodeConfig, loading: false }));
         } catch (err) {
